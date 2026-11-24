@@ -22,7 +22,7 @@ Without the `SUPABASE_*` variables there's no login locally: every request runs 
 
 ## Database & login
 
-**Supabase** hosts Postgres and handles sign-in (email magic link). The frontend signs in with
+**Supabase** hosts Postgres and handles sign-in (Google, with an email link as a fallback). The frontend signs in with
 `supabase-js` and sends the access token to the API, which verifies it (`backend/auth.py`) and scopes
 every query to that user. The browser never talks to the tables directly: RLS is on with no policies,
 so Supabase's REST API can't read them; only the backend (connecting as the DB owner) can.
@@ -32,9 +32,12 @@ Setup:
    and the session pooler URL (port 5432) into `MIGRATIONS_DATABASE_URL`.
 2. Copy the project URL and publishable key into `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-3. **Authentication → URL Configuration**: set the Site URL and add `http://localhost:3000/**` and your
+3. **Google sign-in**: in Google Cloud Console create an OAuth client (Web application) with the authorized
+   redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`, then paste its client ID and secret
+   into Supabase **Authentication → Providers → Google**.
+4. **Authentication → URL Configuration**: set the Site URL and add `http://localhost:3000/**` and your
    Vercel URL to the redirect allow-list.
-4. `npm run db:migrate`.
+5. `npm run db:migrate`.
 
 Supabase's built-in email sender only allows a few emails an hour; add your own SMTP (e.g. Resend) under
 **Authentication → Emails** before real users sign in.

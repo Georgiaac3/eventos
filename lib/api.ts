@@ -108,7 +108,11 @@ export async function api<T = unknown>(path: string, body?: unknown): Promise<T>
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
-  if (res.status === 401 && supabase) {
+  if (res.status === 401) {
+    if (!supabase) {
+      throw new Error("The API requires login (SUPABASE_URL is set) but the frontend has no Supabase config: set "
+        + "NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env.local and restart.");
+    }
     window.location.href = "/login";
     throw new Error("Sign in first.");
   }
