@@ -1,15 +1,14 @@
 """Eventos API (FastAPI). Served at /api/* — by uvicorn locally, by Vercel's Python runtime in production."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
-import secrets
-
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 from . import config, store
+from .auth import User, current_user
 from .agent import run_agent
 from .pipeline import digest_by_rules, push_notification, ranked, run_rules, sign_up, sync_all
 from .connectors import LABEL
@@ -40,14 +39,6 @@ def _digest(s: dict[str, Any]) -> dict[str, Any]:
     return {"mode": "rules", "digest": digest_by_rules(s)}
 
 
-def _feed_token(s: dict[str, Any]) -> str:
-    """Secret for the calendar feed URL, created on first use."""
-    cal = s["connections"]["calendars"]
-    if not cal.get("feedToken"):
-        cal["feedToken"] = secrets.token_urlsafe(18)
-    return cal["feedToken"]
-
-
 PLAN_STATUSES = {"confirmed": "Going", "held": "Spot saved for you", "needs_action": "RSVP pending"}
 
 
@@ -63,11 +54,10 @@ def _plans(s: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 @app.get("/api/state")
-def get_state() -> dict[str, Any]:
-    with store.transaction() as s:
-        _feed_token(s)
-    s = store.load()
+def get_state(user: User = Depends(current_user)) -> dict[str, Any]:
+    s = store.load(user.id)
     return {
+        "user": {"id": user.id, "email": user.email},
         "profile": s["profile"],
         "connections": s["connections"],
         "feed": ranked(s),
@@ -101,16 +91,16 @@ class ProfileIn(BaseModel):
 
 
 @app.post("/api/profile")
-def post_profile(body: ProfileIn) -> dict[str, Any]:
-    with store.transaction() as s:
+def post_profile(body: ProfileIn, user: User = Depends(current_user)) -> dict[str, Any]:
+    with store.transaction(user.id) as s:
         s["profile"].update(body.model_dump(exclude_none=True))
         s["profile"]["digestMax"] = max(1, min(20, int(s["profile"]["digestMax"])))
         return s["profile"]
 
 
 @app.post("/api/connections")
-def post_connections(body: dict[str, dict[str, Any]]) -> dict[str, bool]:
-    with store.transaction() as s:
+def post_connections(body: dict[str, dict[str, Any]], user: User = Depends(current_user)) -> dict[str, bool]:
+    with store.transaction(user.id) as s:
         for key, val in body.items():
             if key in s["connections"]:
                 s["connections"][key].update({k: v for k, v in val.items() if k in s["connections"][key]})
@@ -118,14 +108,14 @@ def post_connections(body: dict[str, dict[str, Any]]) -> dict[str, bool]:
 
 
 @app.post("/api/scan")
-def post_scan() -> dict[str, Any]:
-    with store.transaction() as s:
+def post_scan(user: User = Depends(current_user)) -> dict[str, Any]:
+    with store.transaction(user.id) as s:
         return _scan(s)
 
 
 @app.post("/api/digest")
-def post_digest() -> dict[str, Any]:
-    with store.transaction() as s:
+def post_digest(user: User = Depends(current_user)) -> dict[str, Any]:
+    with store.transaction(user.id) as s:
         return _digest(s)
 
 
@@ -134,12 +124,12 @@ class AskIn(BaseModel):
 
 
 @app.post("/api/ask")
-def post_ask(body: AskIn) -> dict[str, Any]:
+def post_ask(body: AskIn, user: User = Depends(current_user)) -> dict[str, Any]:
     if not config.agent_available():
         raise HTTPException(400, "Set ANTHROPIC_API_KEY (and ANTHROPIC_BASE_URL for Parley) to talk to the agent.")
     if not body.message.strip():
         raise HTTPException(400, "Ask something first.")
-    with store.transaction() as s:
+    with store.transaction(user.id) as s:
         last = (s.get("lastSync") or {}).get("at")
         from .util import ts
         import time
@@ -156,8 +146,8 @@ class SignupIn(BaseModel):
 
 
 @app.post("/api/signup")
-def post_signup(body: SignupIn) -> dict[str, Any]:
-    with store.transaction() as s:
+def post_signup(body: SignupIn, user: User = Depends(current_user)) -> dict[str, Any]:
+    with store.transaction(user.id) as s:
         ev = s["events"].get(body.eventId)
         if not ev:
             raise HTTPException(404, "Unknown event")
@@ -181,33 +171,34 @@ class EventIn(BaseModel):
 
 
 @app.post("/api/dismiss")
-def post_dismiss(body: EventIn) -> dict[str, bool]:
-    with store.transaction() as s:
+def post_dismiss(body: EventIn, user: User = Depends(current_user)) -> dict[str, bool]:
+    with store.transaction(user.id) as s:
         if body.eventId not in s["dismissed"]:
             s["dismissed"].append(body.eventId)
     return {"ok": True}
 
 
 @app.post("/api/notifications/read")
-def post_read() -> dict[str, bool]:
-    with store.transaction() as s:
+def post_read(user: User = Depends(current_user)) -> dict[str, bool]:
+    with store.transaction(user.id) as s:
         for n in s["notifications"]:
             n["read"] = True
     return {"ok": True}
 
 
 @app.post("/api/reset")
-def post_reset() -> dict[str, bool]:
-    store.save(store.default_state())
+def post_reset(user: User = Depends(current_user)) -> dict[str, bool]:
+    store.reset(user.id, user.email)
     return {"ok": True}
 
 
 @app.get("/api/calendar/{token}.ics")
 def calendar_feed(token: str) -> Response:
     """Subscribable feed of your plans, for Apple / Google / Outlook calendar."""
-    s = store.load()
-    if not s["connections"]["calendars"].get("feedToken") or not secrets.compare_digest(token, s["connections"]["calendars"]["feedToken"]):
+    user_id = store.user_for_feed_token(token)
+    if not user_id:
         raise HTTPException(404, "Not found")
+    s = store.load(user_id)
     items = []
     for p in _plans(s):
         ev, su = p["event"], p["signup"]
@@ -239,14 +230,28 @@ def _check_cron(authorization: str | None) -> None:
 @app.get("/api/cron/scan")
 def cron_scan(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     _check_cron(authorization)
-    with store.transaction() as s:
-        return _scan(s)
+    return _for_each_user(_scan)
 
 
 @app.get("/api/cron/digest")
 def cron_digest(authorization: str | None = Header(default=None)) -> dict[str, Any]:
     _check_cron(authorization)
-    with store.transaction() as s:
+
+    def run(s: dict[str, Any]) -> dict[str, Any]:
         sync_all(s)
         score_events(s)
         return _digest(s)
+    return _for_each_user(run)
+
+
+def _for_each_user(fn: Callable[[dict[str, Any]], dict[str, Any]]) -> dict[str, Any]:
+    """Cron jobs run for every onboarded user; one user's failure doesn't stop the rest."""
+    out: dict[str, Any] = {}
+    for user_id in store.onboarded_users():
+        try:
+            with store.transaction(user_id) as s:
+                r = fn(s)
+            out[user_id] = {"ok": True, "mode": r.get("mode")}
+        except Exception as e:
+            out[user_id] = {"ok": False, "error": str(e)}
+    return {"users": len(out), "results": out}

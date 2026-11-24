@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { accessToken, supabase } from "./supabase";
 
 export type Platform = "luma" | "eventbrite" | "sloan" | "harvard" | "partiful";
 
@@ -80,6 +81,7 @@ export interface AgentRun {
 }
 
 export interface AppState {
+  user: { id: string; email: string };
   profile: Profile;
   connections: Connections;
   feed: FeedItem[];
@@ -99,12 +101,17 @@ export interface AppState {
 }
 
 export async function api<T = unknown>(path: string, body?: unknown): Promise<T> {
+  const token = await accessToken();
   const res = await fetch(`/api/${path}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
+  if (res.status === 401 && supabase) {
+    window.location.href = "/login";
+    throw new Error("Sign in first.");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.detail ?? `Request failed (${res.status})`);
   return data as T;
