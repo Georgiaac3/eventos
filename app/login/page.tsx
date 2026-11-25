@@ -109,6 +109,7 @@ export default function Login() {
         </>
       )}
       {err && <p className="err" style={{ marginTop: 16 }}>{err}</p>}
+      <p className="small muted" style={{ marginTop: 40 }}><a href="/privacy">Privacy policy</a></p>
     </main>
   );
 }

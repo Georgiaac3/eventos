@@ -22,7 +22,7 @@ export function Nav() {
     const { data } = supabase.auth.onAuthStateChange((_e, session) => setEmail(session?.user.email ?? null));
     return () => data.subscription.unsubscribe();
   }, []);
-  if (path === "/login") {
+  if (path === "/login" || path === "/privacy") {
     return <nav className="nav"><Link href="/" className="wordmark">eventos</Link></nav>;
   }
   return (
