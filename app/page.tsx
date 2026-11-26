@@ -13,6 +13,8 @@ function greeting(tz: string) {
 }
 
 type Tab = "foryou" | "hot" | "going";
+/** Order of the platform filter chips (after "All"). */
+const PLATFORM_ORDER: Platform[] = ["sloan", "harvard", "luma", "partiful", "eventbrite"];
 const FIRST = 5; // most relevant first; "Show more" reveals the rest
 const PAGE = 10;
 
@@ -22,7 +24,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("foryou");
   const [shown, setShown] = useState(FIRST);
   const [plat, setPlat] = useState<Platform | "all">("all");
-  const [cats, setCats] = useState<Category[]>([]); // empty = all; otherwise events matching ANY selected
+  const [cats, setCats] = useState<Category[]>([]); // empty = all; otherwise events that have ALL selected categories
   const [q, setQ] = useState("");
   const [search, setSearch] = useState(""); // title search across all tabs (separate from the Ask box)
   const [asking, setAsking] = useState(false);
@@ -49,13 +51,15 @@ export default function Home() {
   const searching = isActive(query);
   const inTab = searching ? searchFeed(state.feed, query) : lists[tab];
   const onSearch = (v: string) => { setSearch(v); setShown(FIRST); setPlat("all"); };
-  const platforms = (Object.keys(PLATFORM) as Platform[]).filter((p) => inTab.some((r) => r.event.platform === p));
+  const platforms = PLATFORM_ORDER.filter((p) => inTab.some((r) => r.event.platform === p));
   const byPlat = plat === "all" ? inTab : inTab.filter((r) => r.event.platform === plat);
   const catsOf = (r: FeedItem) => r.event.categories ?? [];
-  const catCount = (c: Category) => byPlat.filter((r) => catsOf(r).includes(c)).length;
-  // Chips for categories present in this list, plus any selected ones (so they can always be turned off).
+  const hasAll = (r: FeedItem, want: Category[]) => want.every((c) => catsOf(r).includes(c));
+  // A chip's count = how many events you'd see with it selected (on top of what's already selected).
+  const catCount = (c: Category) => byPlat.filter((r) => hasAll(r, cats.includes(c) ? cats : [...cats, c])).length;
+  // Chips that would still leave some events when added, plus the selected ones (so they can always be turned off).
   const catChips = (Object.keys(CATEGORIES) as Category[]).filter((c) => cats.includes(c) || catCount(c) > 0);
-  const items = cats.length === 0 ? byPlat : byPlat.filter((r) => catsOf(r).some((c) => cats.includes(c)));
+  const items = byPlat.filter((r) => hasAll(r, cats));
   const toggleCat = (c: Category) => { setCats(cats.includes(c) ? cats.filter((x) => x !== c) : [...cats, c]); setShown(FIRST); };
   const failed = state.lastSync?.results.filter((r) => !r.ok) ?? [];
   const first = state.profile.name.split(" ")[0];

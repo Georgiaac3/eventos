@@ -18,6 +18,7 @@ def feedback(s: dict[str, Any]) -> str:
         ("Spots you grabbed that they KEPT", [t(x["eventId"]) for x in su if x["by"] == "agent" and x["status"] == "confirmed"]),
         ("Spots they RELEASED", [t(x["eventId"]) for x in su if x["status"] == "declined"]),
         ("Events they signed up for themselves", [t(x["eventId"]) for x in su if x["by"] == "user" and x["status"] != "declined"]),
+        ("Said they're interested (when signing up)", [t(i) for i, x in s["scores"].items() if x.get("source") == "user"]),
         ("Marked not interested", [t(i) for i in s["dismissed"][-15:]]),
     ]
     lines = [f"{label}: {'; '.join(items)}" for label, items in parts if items]

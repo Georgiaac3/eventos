@@ -80,9 +80,12 @@ def sync_all(state: dict[str, Any]) -> dict[str, Any]:
 def ranked(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Upcoming, non-dismissed events with relevance, hotness and conflicts — best first."""
     now, dismissed, out = time.time(), set(state["dismissed"]), []
+    off = {pid for pid in CONNECTORS if not state["connections"].get(pid, {}).get("enabled")}
     for ev in state["events"].values():
         if ts(ev["start"]) <= now or ev["id"] in dismissed:
             continue
+        if ev["platform"] in off and ev["id"] not in state["signups"]:
+            continue  # source turned off: hide its events (kept stored, so turning it back on restores them); keep your sign-ups
         s = state["scores"].get(ev["id"]) or {}
         conflict = conflicts(ev, state["busy"])
         base = s.get("score", 0)

@@ -40,9 +40,9 @@ export function EventRow({ item, signup, tz, onChange }: { item: FeedItem; signu
 
   return (
     <article className="row">
-      <div className="date" aria-hidden>
+      <div className="date">
         <div className="dow">{w.dow}</div>
-        <div className="day">{w.day}</div>
+        <div className="md">{w.month} {w.day}</div>
       </div>
 
       <div className="body">
@@ -52,7 +52,7 @@ export function EventRow({ item, signup, tz, onChange }: { item: FeedItem; signu
         </div>
         <a className="title" href={ev.url} target="_blank" rel="noreferrer">{ev.title}</a>
         <div className="meta">
-          {w.month} {w.day} · {w.time}
+          {w.time}
           {ev.location ? ` · ${ev.location}` : ""}
         </div>
         {ev.categories && ev.categories.length > 0 && (
