@@ -91,7 +91,7 @@ export default function Home() {
 
   return (
     <main className="fade">
-      <h1 className="display">{greeting(tz)}{first ? `, ${first}` : ""}.</h1>
+      <h1 className="display greeting">{greeting(tz)}{first ? `, ${first}` : ""}.</h1>
       <p className="lede">
         {state.lastSync ? `Updated ${ago(state.lastSync.at)}` : "Not checked yet"}
         {" · "}

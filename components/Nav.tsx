@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signOut, supabase } from "@/lib/supabase";
+import { ThemeToggle } from "./ThemeToggle";
 
 const LINKS = [
   ["/", "For you", ["/"]],
@@ -22,18 +23,25 @@ export function Nav() {
     const { data } = supabase.auth.onAuthStateChange((_e, session) => setEmail(session?.user.email ?? null));
     return () => data.subscription.unsubscribe();
   }, []);
+  const wordmark = (
+    <Link href="/" className="wordmark">
+      <img src="/logo-globe.png" alt="" width={24} height={24} className="logo" />
+      eventos
+    </Link>
+  );
   if (path === "/login" || path === "/privacy") {
-    return <nav className="nav"><Link href="/" className="wordmark">eventos</Link></nav>;
+    return <nav className="nav">{wordmark}<ThemeToggle /></nav>;
   }
   return (
     <nav className="nav">
-      <Link href="/" className="wordmark">eventos</Link>
+      {wordmark}
       {LINKS.map(([href, label, match]) => (
         <Link key={href} href={href} className={`link ${(match as readonly string[]).includes(path) ? "active" : ""}`}>
           {label}
         </Link>
       ))}
       {email && <button className="link" title={email} onClick={signOut}>Sign out</button>}
+      <ThemeToggle />
     </nav>
   );
 }
