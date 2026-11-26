@@ -63,10 +63,15 @@ export interface Signup {
   actionUrl?: string;
 }
 
+/** Keep in sync with SloanProgram in backend/app.py. */
+export const SLOAN_PROGRAMS = ["MBA", "Executive MBA", "MFin", "MBAn", "LGO", "MSMS"] as const;
+export type SloanProgram = (typeof SLOAN_PROGRAMS)[number];
+
 export interface Profile {
   onboarded: boolean;
   name: string;
   email: string;
+  sloanProgram: SloanProgram | "";
   interests: string[];
   about: string;
   professionalMix: number;

@@ -120,6 +120,8 @@ class ToolRunner:
     def t_rate_events(self, ratings: list[dict[str, Any]]) -> str:
         n = 0
         for r in ratings:
+            if (self.s["scores"].get(r["event_id"]) or {}).get("source") == "user":
+                continue  # the user said they're interested; keep their answer
             if r["event_id"] in self.s["events"]:
                 self.s["scores"][r["event_id"]] = {"score": max(0, min(100, int(r["score"]))), "reason": r["reason"][:160],
                                                    "source": "claude", "profileHash": self.hash}

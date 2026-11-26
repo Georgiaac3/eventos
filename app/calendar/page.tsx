@@ -12,6 +12,7 @@ export default function Calendar() {
   const [copied, setCopied] = useState(false);
   const [links, setLinks] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false); // linked calendars are shown as "Calendar linked" until Edit is clicked
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => setOrigin(window.location.origin), []);
@@ -26,7 +27,9 @@ export default function Calendar() {
   const webcal = feed.replace(/^https?:/, "webcal:");
   const google = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
   const local = /^(localhost|127\.|0\.0\.0\.0|10\.|192\.168\.)/.test(origin.replace(/^https?:\/\//, ""));
-  const connected = state.connections.calendars.icsUrls.length > 0;
+  const saved = state.connections.calendars.icsUrls;
+  const connected = saved.length > 0;
+  const showBox = !connected || editing;
   const calSync = state.lastSync?.results.find((r) => r.platform === "calendar");
 
   // Your own calendar plus the events you've signed up for, on one grid.
@@ -49,13 +52,15 @@ export default function Calendar() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  async function saveLinks() {
+  async function saveLinks(urls: string[] = toList(links ?? "")) {
     setSaving(true);
     setErr(null);
     try {
-      await api("connections", { calendars: { icsUrls: toList(links ?? "") } });
+      await api("connections", { calendars: { icsUrls: urls } });
       await api("scan", {});
       await refresh();
+      setLinks(urls.join("\n"));
+      setEditing(false);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -117,25 +122,42 @@ export default function Calendar() {
             </span>
           )}
         </div>
-        <textarea
-          className="input"
-          rows={2}
-          value={links ?? ""}
-          placeholder="Paste your calendar's private link (one per line)"
-          onChange={(e) => setLinks(e.target.value)}
-        />
-        <details className="help">
-          <summary>Where do I find this link?</summary>
-          <ul>
-            <li><b>Google:</b> calendar.google.com → Settings → your calendar → <i>Secret address in iCal format</i></li>
-            <li><b>Apple (iCloud):</b> Calendar → right-click the calendar → <i>Share Calendar</i> → Public, copy the link</li>
-            <li><b>Canvas:</b> Calendar → <i>Calendar Feed</i></li>
-          </ul>
-        </details>
-        <div className="savebar" style={{ marginTop: 16 }}>
-          <button className="pill sm" onClick={saveLinks} disabled={saving}>{saving ? "Syncing…" : connected ? "Save and sync" : "Connect"}</button>
-          {err && <span className="err">{err}</span>}
-        </div>
+        {showBox ? (
+          <>
+            <textarea
+              className="input"
+              rows={2}
+              value={links ?? ""}
+              placeholder="Paste your calendar's private link (one per line)"
+              onChange={(e) => setLinks(e.target.value)}
+            />
+            <details className="help">
+              <summary>Where do I find this link?</summary>
+              <ul>
+                <li><b>Google:</b> calendar.google.com → Settings → your calendar → <i>Integrate calendar</i> → <i>Secret address in iCal format</i></li>
+                <li><b>Apple (iCloud):</b> Calendar → right-click the calendar → <i>Share Calendar</i> → Public, copy the link</li>
+                <li><b>Canvas:</b> Calendar → <i>Calendar Feed</i></li>
+              </ul>
+            </details>
+            <div className="savebar" style={{ marginTop: 16 }}>
+              <button className="pill sm" onClick={() => saveLinks()} disabled={saving || toList(links ?? "").length === 0}>
+                {saving ? "Syncing…" : "Save"}
+              </button>
+              {editing && (
+                <>
+                  <button className="text sm" disabled={saving} onClick={() => { setLinks(saved.join("\n")); setEditing(false); setErr(null); }}>Cancel</button>
+                  <button className="text sm" disabled={saving} onClick={() => saveLinks([])}>Disconnect</button>
+                </>
+              )}
+              {err && <span className="err">{err}</span>}
+            </div>
+          </>
+        ) : (
+          <div className="savebar" style={{ marginTop: 16 }}>
+            <span>{saved.length === 1 ? "Calendar linked" : `${saved.length} calendars linked`}</span>
+            <button className="pill sm ghost" onClick={() => { setLinks(saved.join("\n")); setEditing(true); }}>Edit</button>
+          </div>
+        )}
       </div>
     </main>
   );

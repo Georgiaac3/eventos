@@ -59,7 +59,7 @@ def score_events(state: dict[str, Any]) -> None:
     p, h = state["profile"], profile_hash(state["profile"])
     for eid, ev in state["events"].items():
         cur = state["scores"].get(eid)
-        if cur and cur.get("profileHash") == h:
+        if cur and (cur.get("profileHash") == h or cur.get("source") == "user"):  # the user's own answer always wins
             continue
         s, r = heuristic(ev, p)
         state["scores"][eid] = {"score": s, "reason": r, "source": "heuristic", "profileHash": h}

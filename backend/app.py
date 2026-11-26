@@ -16,14 +16,19 @@ from .agent import run_agent
 from .pipeline import digest_by_rules, push_notification, ranked, run_rules, sign_up, sync_all
 from .connectors import LABEL
 from .ics import build_ics
-from .rank import score_events
+from .calibrate import USER_BOOST, pick_uncertain
+from .rank import profile_hash, score_events
 from .util import now_iso
 
 app = FastAPI(title="Eventos API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 
 def _scan(s: dict[str, Any]) -> dict[str, Any]:
-    sync = sync_all(s)
+    return _decide(s, sync_all(s))
+
+
+def _decide(s: dict[str, Any], sync: dict[str, Any] | None) -> dict[str, Any]:
+    """Everything a scan does after syncing: score, then let the agent (or the rules) act."""
     score_events(s)
     if s["profile"]["onboarded"] and config.agent_available():
         run = run_agent(s, "scan")
@@ -81,10 +86,14 @@ def get_state(user: User = Depends(current_user)) -> dict[str, Any]:
     }
 
 
+SloanProgram = Literal["MBA", "Executive MBA", "MFin", "MBAn", "LGO", "MSMS"]  # keep in sync with SLOAN_PROGRAMS in lib/api.ts
+
+
 class ProfileIn(BaseModel):
     onboarded: bool | None = None
     name: str | None = None
     email: str | None = None
+    sloanProgram: SloanProgram | None = None
     interests: list[str] | None = None
     about: str | None = None
     professionalMix: int | None = None
@@ -150,6 +159,40 @@ def post_connections(body: dict[str, dict[str, Any]], user: User = Depends(curre
 def post_scan(user: User = Depends(current_user)) -> dict[str, Any]:
     with store.transaction(user.id) as s:
         return _scan(s)
+
+
+@app.post("/api/calibration")
+def post_calibration(user: User = Depends(current_user)) -> dict[str, Any]:
+    """Sign-up step: load events (no agent yet) and return a few the user should mark interested or not."""
+    with store.transaction(user.id) as s:
+        sync_all(s)
+        score_events(s)
+        return {"events": pick_uncertain(s)}
+
+
+class CalibrationAnswer(BaseModel):
+    eventId: str
+    answer: Literal["yes", "no", "unsure"]
+
+
+class CalibrationIn(BaseModel):
+    answers: list[CalibrationAnswer] = []
+
+
+@app.post("/api/calibration/answers")
+def post_calibration_answers(body: CalibrationIn, user: User = Depends(current_user)) -> dict[str, Any]:
+    """Save the sign-up answers, finish onboarding, and build the feed (events were just synced; no re-sync)."""
+    with store.transaction(user.id) as s:
+        h = profile_hash(s["profile"])
+        for a in body.answers:
+            if a.eventId not in s["events"]:
+                continue
+            if a.answer == "no" and a.eventId not in s["dismissed"]:
+                s["dismissed"].append(a.eventId)
+            elif a.answer == "yes":
+                s["scores"][a.eventId] = {"score": USER_BOOST, "reason": "You said you're interested", "source": "user", "profileHash": h}
+        s["profile"]["onboarded"] = True
+        return _decide(s, None)
 
 
 @app.post("/api/digest")

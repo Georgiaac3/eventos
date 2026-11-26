@@ -26,6 +26,7 @@ DEFAULT_PROFILE: dict[str, Any] = {
     "onboarded": False,
     "name": "",
     "email": "",
+    "sloanProgram": "",  # one of SLOAN_PROGRAMS in backend/app.py; "" until chosen
     "interests": [],
     "about": "",
     "professionalMix": 60,

@@ -4,13 +4,23 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SettingsTabs } from "@/components/Nav";
 import { ResumeUpload } from "@/components/ResumeUpload";
-import { type Profile, api, useAppState } from "@/lib/api";
+import { type Answer, Calibration } from "@/components/Calibration";
+import { type FeedItem, type Profile, SLOAN_PROGRAMS, api, useAppState } from "@/lib/api";
 
-const SUGGESTED = [
-  "AI", "startups", "venture capital", "product management", "consulting", "fintech", "climate", "biotech",
-  "healthcare", "policy", "hackathons", "design", "running", "fitness", "music", "comedy", "food", "wine",
-  "art", "books", "outdoors", "parties",
+/** Suggested interests, grouped the way Sloan groups its clubs (professional / social / cultural & affiliation). */
+const GROUPS: [string, string[]][] = [
+  ["Professional", [
+    "AI", "startups", "venture capital", "product management", "consulting", "fintech", "climate", "biotech",
+    "healthcare", "policy", "hackathons", "design",
+  ]],
+  ["Fun & lifestyle", ["running", "fitness", "outdoors", "music", "comedy", "art", "books", "food", "wine", "parties"]],
+  ["Culture & community", [
+    "cultural heritage", "international", "language exchange", "faith & spirituality", "Jewish", "Christian", "Muslim",
+    "Hindu", "Buddhist", "Black community", "Hispanic & Latino", "Asian", "South Asian", "LGBTQ+", "women in business",
+    "first-gen", "veterans",
+  ]],
 ];
+const SUGGESTED = GROUPS.flatMap(([, items]) => items);
 
 /** Display only: "venture capital" → "Venture capital". Saved interests keep their original text. */
 const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -22,6 +32,7 @@ export default function Onboarding() {
   const [custom, setCustom] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [calib, setCalib] = useState<FeedItem[] | null>(null); // sign-up step: events to mark interested / not
 
   useEffect(() => {
     if (state && !p) setP(state.profile);
@@ -31,20 +42,54 @@ export default function Onboarding() {
   const first = !state?.profile.onboarded;
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setP({ ...p, [k]: v });
   const toggle = (i: string) => set("interests", p.interests.includes(i) ? p.interests.filter((x) => x !== i) : [...p.interests, i]);
-  const all = [...SUGGESTED, ...p.interests.filter((i) => !SUGGESTED.includes(i))];
+  const own = p.interests.filter((i) => !SUGGESTED.includes(i));
+  const groups: [string, string[]][] = own.length ? [...GROUPS, ["Added by you", own]] : GROUPS;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setErr(null);
     try {
-      await api("profile", { ...p, onboarded: true });
-      if (first) await api("scan", {});
+      if (!first) {
+        await api("profile", p);
+        router.push("/");
+        return;
+      }
+      // First sign-up: save answers, load events, and ask about a few we're unsure of before building the feed.
+      await api("profile", p);
+      const { events } = await api<{ events: FeedItem[] }>("calibration", {});
+      if (events.length > 0) {
+        setCalib(events);
+        setSaving(false);
+        window.scrollTo({ top: 0 });
+      } else {
+        await finish([]);
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      setSaving(false);
+    }
+  }
+
+  async function finish(answers: { eventId: string; answer: Answer }[]) {
+    setSaving(true);
+    setErr(null);
+    try {
+      await api("calibration/answers", { answers });
       router.push("/");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setSaving(false);
     }
+  }
+
+  if (calib) {
+    return (
+      <main>
+        <Calibration events={calib} tz={p.timezone} busy={saving} onDone={finish} />
+        {err && <p className="err">{err}</p>}
+      </main>
+    );
   }
 
   return (
@@ -56,13 +101,30 @@ export default function Onboarding() {
 
       <form onSubmit={save}>
         <div className="field">
-          <p className="q">What are you into?</p>
-          <p className="hint">Pick a few. Add your own below.</p>
-          <div className="chips">
-            {all.map((i) => (
-              <button type="button" key={i} className={`chip ${p.interests.includes(i) ? "on" : ""}`} onClick={() => toggle(i)}>{label(i)}</button>
+          <p className="q">Select your Sloan program</p>
+          <div className="chips" role="radiogroup" aria-label="Sloan program">
+            {SLOAN_PROGRAMS.map((prog) => (
+              <button type="button" key={prog} role="radio" aria-checked={p.sloanProgram === prog}
+                className={`chip ${p.sloanProgram === prog ? "on" : ""}`} onClick={() => set("sloanProgram", prog)}>
+                {prog}
+              </button>
             ))}
           </div>
+        </div>
+
+        <div className="field">
+          <p className="q">What are you into?</p>
+          <p className="hint">Pick a few. Add your own below.</p>
+          {groups.map(([title, items]) => (
+            <div className="chip-group" key={title}>
+              <span className="chip-group-label">{title}</span>
+              <div className="chips">
+                {items.map((i) => (
+                  <button type="button" key={i} className={`chip ${p.interests.includes(i) ? "on" : ""}`} onClick={() => toggle(i)}>{label(i)}</button>
+                ))}
+              </div>
+            </div>
+          ))}
           <input
             className="input"
             style={{ marginTop: 14 }}
@@ -137,10 +199,11 @@ export default function Onboarding() {
         </div>
 
         <div className="actions" style={{ marginTop: 48 }}>
-          <button className="pill" disabled={saving || p.interests.length === 0}>
-            {saving ? (first ? "Finding your events…" : "Saving…") : first ? "Find my events" : "Save"}
+          <button className="pill" disabled={saving || !p.sloanProgram || p.interests.length === 0}>
+            {saving ? (first ? "Looking for events…" : "Saving…") : first ? "Continue" : "Save"}
           </button>
-          {p.interests.length === 0 && <span className="small muted">Pick at least one interest.</span>}
+          {!p.sloanProgram ? <span className="small muted">Select your Sloan program.</span>
+            : p.interests.length === 0 && <span className="small muted">Pick at least one interest.</span>}
           {err && <span className="err">{err}</span>}
         </div>
       </form>

@@ -83,7 +83,7 @@ event_scores = Table(
     Column("event_id", Text, primary_key=True),
     Column("score", SmallInteger, nullable=False),
     Column("reason", Text, nullable=False, server_default=""),
-    Column("source", Text, nullable=False),                               # "heuristic" | "claude"
+    Column("source", Text, nullable=False),                               # "heuristic" | "claude" | "user" (said interested at sign-up)
     Column("profile_hash", Text, nullable=False),
     _event_fk(),
 )
