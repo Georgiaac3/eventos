@@ -156,11 +156,15 @@ function distance(a: string, b: string, max: number): number {
 
 /** How close a city is to what was typed (lower is better), or null if it isn't a match. */
 function closeness(c: City, q: string): number | null {
-  const names = [norm(c.name), ...c.aliases.map(norm)];
+  const name = norm(c.name);
+  const aliases = c.aliases.map(norm);
+  const names = [name, ...aliases];
   const label = norm(c.label);
-  if (names.includes(q)) return 0; // "boston", "nyc"
-  if (names.some((n) => n.startsWith(q))) return 1; // "bos" → Boston
-  if (label.split(" ").some((w) => w.startsWith(q)) || label.startsWith(q)) return 2; // "ma" → Boston, MA; "uk" → London, UK
+  if (name === q) return 0; // "boston"
+  if (aliases.includes(q)) return 0.5; // "nyc"
+  if (name.startsWith(q)) return 1; // "bos" → Boston
+  if (aliases.some((a) => a.startsWith(q))) return 1.5; // "bang" → Bengaluru (bangalore)
+  if (label.split(" ").some((w) => w.startsWith(q))) return 2; // "ma" → Boston, MA; "uk" → London, UK
   if (label.includes(q)) return 3;
   // Typos: compare with the start of each name, same length as the query ("bostn", "londn", "sna fran").
   if (q.length >= 3) {
@@ -176,9 +180,11 @@ export function searchCities(p: CityPlatform, query: string): City[] {
   const list = citiesFor(p);
   const q = norm(query);
   if (!q) return list;
-  return list
+  const hits = list
     .map((c, i) => ({ c, i, s: closeness(c, q) }))
     .filter((x): x is { c: City; i: number; s: number } => x.s !== null)
-    .sort((a, b) => a.s - b.s || a.i - b.i)
-    .map((x) => x.c);
+    .sort((a, b) => a.s - b.s || a.i - b.i);
+  // Typo matches (score ≥ 4) only when nothing matches directly, so "bos" doesn't also suggest Los Angeles.
+  const direct = hits.filter((x) => x.s < 4);
+  return (direct.length ? direct : hits).map((x) => x.c);
 }

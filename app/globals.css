@@ -187,6 +187,27 @@ input[type="range"] { width: 100%; accent-color: var(--ink); }
 .indent { margin-left: 44px; }
 .fields { margin-top: 12px; }
 .fieldset { display: block; margin-top: 12px; }
+
+/* ── city dropdown (Settings → Sources) ── */
+.citypicker { position: relative; }
+.citypicker-box {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0; min-height: 42px;
+  border-bottom: 1px solid var(--line); cursor: text; transition: border-color .2s;
+}
+.citypicker-box:focus-within { border-color: var(--ink); }
+.citypicker-box input { flex: 1 1 120px; min-width: 0; font: inherit; color: var(--ink); background: transparent; border: 0; outline: none; padding: 4px 0; }
+.citypicker-box input::placeholder { color: var(--faint); }
+.city-chip { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--hover); font-size: 13px; }
+.city-chip button { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 15px; line-height: 1; }
+.city-chip button:hover { background: var(--line); color: var(--ink); }
+.citypicker-list {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none;
+  max-height: 240px; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .08);
+}
+.citypicker-list li { padding: 8px 10px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.citypicker-list li.active { background: var(--hover); }
+.citypicker-list li.none { color: var(--muted); cursor: default; }
 .help { margin-top: 10px; font-size: 13px; color: var(--muted); }
 .help summary { cursor: pointer; }
 .help ul { margin: 8px 0 0; padding-left: 18px; }
