@@ -12,6 +12,9 @@ const SUGGESTED = [
   "art", "books", "outdoors", "parties",
 ];
 
+/** Display only: "venture capital" → "Venture capital". Saved interests keep their original text. */
+const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export default function Onboarding() {
   const router = useRouter();
   const { state } = useAppState();
@@ -57,7 +60,7 @@ export default function Onboarding() {
           <p className="hint">Pick a few. Add your own below.</p>
           <div className="chips">
             {all.map((i) => (
-              <button type="button" key={i} className={`chip ${p.interests.includes(i) ? "on" : ""}`} onClick={() => toggle(i)}>{i}</button>
+              <button type="button" key={i} className={`chip ${p.interests.includes(i) ? "on" : ""}`} onClick={() => toggle(i)}>{label(i)}</button>
             ))}
           </div>
           <input
@@ -97,14 +100,16 @@ export default function Onboarding() {
         <div className="field">
           <p className="q">Work or play?</p>
           <p className="hint">{p.professionalMix}% professional, {100 - p.professionalMix}% personal.</p>
-          <input type="range" min={0} max={100} step={10} value={p.professionalMix} onChange={(e) => set("professionalMix", Number(e.target.value))} />
+          <input type="range" min={0} max={100} step={10} value={p.professionalMix} onChange={(e) => set("professionalMix", Number(e.target.value))}
+            style={{ "--fill": `${p.professionalMix}%` } as React.CSSProperties} />
           <div className="scale"><span>All social</span><span>All career</span></div>
         </div>
 
         <div className="field">
           <p className="q">How much should I send you?</p>
           <p className="hint">A digest every Monday and Thursday with at most {p.digestMax} events. Hot events come right away.</p>
-          <input type="range" min={2} max={12} value={p.digestMax} onChange={(e) => set("digestMax", Number(e.target.value))} />
+          <input type="range" min={2} max={12} value={p.digestMax} onChange={(e) => set("digestMax", Number(e.target.value))}
+            style={{ "--fill": `${((p.digestMax - 2) / 10) * 100}%` } as React.CSSProperties} />
           <div className="scale"><span>2</span><span>12</span></div>
         </div>
 
