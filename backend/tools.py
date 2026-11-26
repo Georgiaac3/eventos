@@ -88,6 +88,7 @@ class ToolRunner:
             lines.append(" | ".join(str(x) for x in [
                 f"id={e['id']}", f'"{e["title"]}"', fmt_local(e["start"], self.tz), LABEL[e["platform"]],
                 e.get("location"), e.get("price"),
+                f"categories={','.join(e['categories'])}" if e.get("categories") else None,
                 "SOLD OUT" if e.get("soldOut") else f"HOT ({r['hot']['label']})" if r["hot"]["hot"] else r["hot"]["label"],
                 "CONFLICTS WITH CALENDAR" if r["conflict"] else None,
                 f"signup={s['signups'][e['id']]['status']}" if e["id"] in s["signups"] else None,
@@ -105,7 +106,7 @@ class ToolRunner:
         return json.dumps({
             "title": e["title"], "start": fmt_local(e["start"], self.tz), "end": fmt_local(e["end"], self.tz) if e.get("end") else None,
             "where": e.get("location"), "host": e.get("host"), "platform": LABEL[e["platform"]], "price": e.get("price"),
-            "requires_approval": e.get("requiresApproval"), "tags": e.get("tags"), "description": e.get("description", "")[:1200],
+            "requires_approval": e.get("requiresApproval"), "tags": e.get("tags"), "categories": e.get("categories"), "description": e.get("description", "")[:1200],
             "going": e.get("registered"), "capacity": e.get("capacity"), "rsvp_history": hist, "url": e.get("url"),
         })
 

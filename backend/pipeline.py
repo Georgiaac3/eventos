@@ -5,6 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from .categorize import categorize_events
 from .connectors import CONNECTORS, LABEL, connector_for
 from .hotness import hotness
 from datetime import datetime, timedelta, timezone
@@ -39,6 +40,8 @@ def sync_all(state: dict[str, Any]) -> dict[str, Any]:
                 eid = f"{raw['platform']}:{raw['externalId']}"
                 prev = state["events"].get(eid)
                 state["events"][eid] = {**raw, "id": eid, "firstSeen": prev["firstSeen"] if prev else seen, "lastSeen": seen}
+                if prev and prev.get("categoriesBy"):  # inferred once per event; keep across syncs
+                    state["events"][eid].update(categories=prev.get("categories", []), categoriesBy=prev["categoriesBy"])
                 if raw.get("registered") is not None or raw.get("spotsRemaining") is not None or raw.get("soldOut"):
                     state["snapshots"].setdefault(eid, []).append(
                         {"at": seen, "registered": raw.get("registered"), "spotsRemaining": raw.get("spotsRemaining"), "soldOut": raw.get("soldOut")})
@@ -66,6 +69,10 @@ def sync_all(state: dict[str, Any]) -> dict[str, Any]:
         log["results"].append({"platform": "calendar", "ok": err is None, "count": len(mine), "error": err})
     else:
         state["myCalendar"], state["busy"] = [], []
+    try:
+        categorize_events(state)
+    except Exception as e:  # categories are a nice-to-have; never fail the sync over them
+        log["results"].append({"platform": "categories", "ok": False, "count": 0, "error": str(e)})
     state["lastSync"] = log
     return log
 

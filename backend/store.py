@@ -19,7 +19,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from . import db
 from .db import (agent_notes, agent_runs, calendar_entries, digests, dismissals, event_scores, event_snapshots, events,
-                 notifications, profiles, signups)
+                 notifications, profiles, resumes, signups)
 from .util import parse_iso, ts
 
 DEFAULT_PROFILE: dict[str, Any] = {
@@ -92,6 +92,32 @@ def user_for_feed_token(token: str) -> str | None:
 def onboarded_users() -> list[str]:
     with db.engine().connect() as c:
         return list(c.execute(select(profiles.c.user_id).where(profiles.c.onboarded)).scalars())
+
+
+# ── resume ─────────────────────────────────────────────────────
+# Kept out of the state dict: the file can be megabytes and only the agent's resume tool needs the bytes.
+
+def resume_info(user_id: str) -> dict[str, Any] | None:
+    """The uploaded resume's metadata (no file contents), or None."""
+    with db.engine().connect() as c:
+        r = c.execute(select(resumes.c.filename, resumes.c.size, resumes.c.uploaded_at)
+                      .where(resumes.c.user_id == user_id)).first()
+    return {"filename": r.filename, "size": r.size, "uploadedAt": _iso(r.uploaded_at)} if r else None
+
+
+def save_resume(user_id: str, filename: str, content_type: str, data: bytes) -> dict[str, Any]:
+    """Store the user's resume, replacing any earlier one."""
+    row = {"filename": filename, "content_type": content_type, "size": len(data), "data": data,
+           "uploaded_at": datetime.now(timezone.utc)}
+    with db.engine().begin() as c:
+        c.execute(insert(resumes).values(user_id=user_id, **row)
+                  .on_conflict_do_update(index_elements=[resumes.c.user_id], set_=row))
+    return {"filename": filename, "size": len(data), "uploadedAt": _iso(row["uploaded_at"])}
+
+
+def delete_resume(user_id: str) -> None:
+    with db.engine().begin() as c:
+        c.execute(delete(resumes).where(resumes.c.user_id == user_id))
 
 
 def reset(user_id: str, email: str = "") -> None:

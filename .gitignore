@@ -37,3 +37,6 @@ yarn-error.log*
 
 # Old local JSON store (replaced by Postgres)
 .data/
+
+# Old local virtualenvs
+.venv*/

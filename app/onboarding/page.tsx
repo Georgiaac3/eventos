@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SettingsTabs } from "@/components/Nav";
+import { ResumeUpload } from "@/components/ResumeUpload";
 import { type Profile, api, useAppState } from "@/lib/api";
 
 const SUGGESTED = [
@@ -85,6 +86,12 @@ export default function Onboarding() {
             onChange={(e) => set("about", e.target.value)}
             placeholder="Recruiting for PM internships, meeting climate founders, making friends outside my section."
           />
+        </div>
+
+        <div className="field">
+          <p className="q">Have a resume?</p>
+          <p className="hint">Optional. Your agent uses it to match career events and people to your background. Saved as soon as you add it.</p>
+          <ResumeUpload initial={state?.resume ?? null} />
         </div>
 
         <div className="field">

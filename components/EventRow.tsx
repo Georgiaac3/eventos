@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { type FeedItem, PLATFORM, type Signup, api, when } from "@/lib/api";
+import { CATEGORIES, type FeedItem, PLATFORM, type Signup, api, when } from "@/lib/api";
 
 /** One event: date, title, one line of details, one status tag, one action. */
 export function EventRow({ item, signup, tz, onChange }: { item: FeedItem; signup?: Signup; tz: string; onChange: () => void }) {
@@ -55,6 +55,9 @@ export function EventRow({ item, signup, tz, onChange }: { item: FeedItem; signu
           {w.month} {w.day} · {w.time}
           {ev.location ? ` · ${ev.location}` : ""}
         </div>
+        {ev.categories && ev.categories.length > 0 && (
+          <div className="cats">{ev.categories.map((c) => CATEGORIES[c] ?? c).join(" · ")}</div>
+        )}
         {item.reason && <div className="why">{item.reason}</div>}
         {(tag || err) && <div className="tags">{tag}{err && <span className="err">{err}</span>}</div>}
       </div>

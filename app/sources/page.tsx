@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CityPicker } from "@/components/CityPicker";
 import { SettingsTabs } from "@/components/Nav";
 import { type Connections, api, useAppState } from "@/lib/api";
+import type { CityPlatform } from "@/lib/cities";
 
 type Key = Exclude<keyof Connections, "calendars">;
-interface Field { field: string; label: string; placeholder: string; help?: string; secret?: boolean; list?: boolean }
+interface Field {
+  field: string; label: string; placeholder: string; help?: string; secret?: boolean; list?: boolean;
+  cities?: CityPlatform; // render as the city dropdown for this platform
+  max?: number; // cities the connector searches (backend/connectors/*.py)
+}
 
 const SOURCES: { key: Key; title: string; blurb: string; fields: Field[] }[] = [
   {
@@ -21,7 +27,7 @@ const SOURCES: { key: Key; title: string; blurb: string; fields: Field[] }[] = [
     key: "luma", title: "Luma",
     blurb: "Events in your city, with live RSVP counts. Free events can be signed up for automatically.",
     fields: [
-      { field: "places", label: "Cities", placeholder: "boston", list: true },
+      { field: "places", label: "Cities", placeholder: "", list: true, cities: "luma" },
       { field: "calendars", label: "Calendars you follow", placeholder: "lu.ma/your-club", list: true },
     ],
   },
@@ -37,7 +43,7 @@ const SOURCES: { key: Key; title: string; blurb: string; fields: Field[] }[] = [
     key: "eventbrite", title: "Eventbrite",
     blurb: "Events in your city, plus searches for your interests. Shows when tickets are going fast. No setup needed.",
     fields: [
-      { field: "places", label: "Cities", placeholder: "boston", list: true },
+      { field: "places", label: "Cities", placeholder: "", list: true, cities: "eventbrite", max: 2 },
       { field: "token", label: "Private token (optional)", placeholder: "ABCD1234…", secret: true, help: "Only needed to follow specific organizers. Create one at eventbrite.com/platform/api-keys." },
       { field: "organizerIds", label: "Organizer IDs (optional)", placeholder: "12345678901", list: true },
     ],
@@ -46,7 +52,7 @@ const SOURCES: { key: Key; title: string; blurb: string; fields: Field[] }[] = [
     key: "partiful", title: "Partiful",
     blurb: "Public parties and events in your city, with how many are going. No setup needed.",
     fields: [
-      { field: "places", label: "Cities", placeholder: "boston", list: true, help: "Partiful covers Boston, NYC, LA, SF, DC, Chicago, Miami, Austin and London." },
+      { field: "places", label: "Cities", placeholder: "", list: true, cities: "partiful", max: 3, help: "Partiful only has city pages for Boston, NYC, LA, SF, DC, Chicago, Miami, Austin and London." },
       { field: "eventUrls", label: "Private invite links (optional)", placeholder: "https://partiful.com/e/…", list: true, help: "Paste invites you've received and I'll track them too." },
     ],
   },
@@ -147,6 +153,19 @@ export default function Sources() {
                 <div className="fields indent">
                   {s.fields.map((f) => {
                     const k = `${s.key}.${f.field}`;
+                    if (f.cities) return (
+                      <div key={k} className="fieldset">
+                        <span className="small muted">{f.label}{f.max ? ` (up to ${f.max})` : ""}</span>
+                        <CityPicker
+                          platform={f.cities}
+                          label={`${s.title} ${f.label.toLowerCase()}`}
+                          max={f.max}
+                          value={toList(text[k] ?? "")}
+                          onChange={(ids) => edit(k, ids.join("\n"))}
+                        />
+                        {f.help && <span className="small faint">{f.help}</span>}
+                      </div>
+                    );
                     return (
                       <label key={k} className="fieldset">
                         <span className="small muted">{f.label}</span>

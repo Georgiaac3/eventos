@@ -26,6 +26,8 @@ def env(name: str, default: str = "") -> str:
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY")
 ANTHROPIC_BASE_URL = env("ANTHROPIC_BASE_URL")  # e.g. your Parley endpoint; empty = api.anthropic.com
 ANTHROPIC_MODEL = env("ANTHROPIC_MODEL", "claude-opus-5-5")
+# Cheap model that tags events with categories (networking, food provided, …) for the feed filter.
+CATEGORIZE_MODEL = env("CATEGORIZE_MODEL", "claude-haiku-5-5")
 # Server-side refusal fallbacks (beta). Turn off if your gateway rejects beta headers.
 ANTHROPIC_FALLBACKS = env("ANTHROPIC_FALLBACKS", "on").lower() not in ("0", "off", "false", "no")
 
