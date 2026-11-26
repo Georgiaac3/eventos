@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EventRow } from "@/components/EventRow";
 import { Markdown } from "@/components/Markdown";
-import { type AgentRun, type FeedItem, PLATFORM, type Platform, ago, api, useAppState } from "@/lib/api";
-
+import { type AgentRun, CATEGORIES, type Category, type FeedItem, PLATFORM, type Platform, ago, api, useAppState } from "@/lib/api";
+import { isActive, parseQuery, searchFeed } from "@/lib/search";
 function greeting(tz: string) {
   const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hourCycle: "h23", timeZone: tz }));
   return h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
@@ -22,7 +22,9 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("foryou");
   const [shown, setShown] = useState(FIRST);
   const [plat, setPlat] = useState<Platform | "all">("all");
+  const [cats, setCats] = useState<Category[]>([]); // empty = all; otherwise events matching ANY selected
   const [q, setQ] = useState("");
+  const [search, setSearch] = useState(""); // title search across all tabs (separate from the Ask box)
   const [asking, setAsking] = useState(false);
   const [answer, setAnswer] = useState<{ text: string; error?: boolean } | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -42,9 +44,19 @@ export default function Home() {
   const forYou = state.feed.filter(open);
   const going = state.feed.filter((r) => su[r.event.id] && !["held", "declined"].includes(su[r.event.id].status));
   const lists: Record<Tab, FeedItem[]> = { foryou: forYou, hot, going };
-  const inTab = lists[tab];
+  // While searching, results come from the whole feed (every tab), not just the selected one.
+  const query = parseQuery(search);
+  const searching = isActive(query);
+  const inTab = searching ? searchFeed(state.feed, query) : lists[tab];
+  const onSearch = (v: string) => { setSearch(v); setShown(FIRST); setPlat("all"); };
   const platforms = (Object.keys(PLATFORM) as Platform[]).filter((p) => inTab.some((r) => r.event.platform === p));
-  const items = plat === "all" ? inTab : inTab.filter((r) => r.event.platform === plat);
+  const byPlat = plat === "all" ? inTab : inTab.filter((r) => r.event.platform === plat);
+  const catsOf = (r: FeedItem) => r.event.categories ?? [];
+  const catCount = (c: Category) => byPlat.filter((r) => catsOf(r).includes(c)).length;
+  // Chips for categories present in this list, plus any selected ones (so they can always be turned off).
+  const catChips = (Object.keys(CATEGORIES) as Category[]).filter((c) => cats.includes(c) || catCount(c) > 0);
+  const items = cats.length === 0 ? byPlat : byPlat.filter((r) => catsOf(r).some((c) => cats.includes(c)));
+  const toggleCat = (c: Category) => { setCats(cats.includes(c) ? cats.filter((x) => x !== c) : [...cats, c]); setShown(FIRST); };
   const failed = state.lastSync?.results.filter((r) => !r.ok) ?? [];
   const first = state.profile.name.split(" ")[0];
 
@@ -111,13 +123,33 @@ export default function Home() {
         </section>
       )}
 
-      <div className="tabs" role="tablist">
-        {TABS.map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setShown(FIRST); setPlat("all"); }}>
-            {label}{lists[k].length > 0 && <span className="n">{lists[k].length}</span>}
-          </button>
-        ))}
+      <div className="tabs-row">
+        <div className="tabs" role="tablist">
+          {TABS.map(([k, label]) => {
+            const on = !searching && tab === k;
+            return (
+              <button key={k} role="tab" aria-selected={on} className={on ? "on" : ""} onClick={() => { setTab(k); setSearch(""); setShown(FIRST); setPlat("all"); }}>
+                {label}{lists[k].length > 0 && <span className="n">{lists[k].length}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="tab-search" role="search">
+          <input
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") onSearch(""); }}
+            placeholder="Search events"
+            aria-label="Search events by name"
+          />
+          {search && <button className="x" aria-label="Clear search" onClick={() => onSearch("")}>×</button>}
+        </div>
       </div>
+      {searching && (
+        <p className="results-note" aria-live="polite">
+          {inTab.length} {inTab.length === 1 ? "result" : "results"} across all events
+        </p>
+      )}
 
       {platforms.length > 1 && (
         <div className="filters">
@@ -126,6 +158,20 @@ export default function Home() {
               {p !== "all" && <span className={`dot plat-${p}`} />}
               {p === "all" ? "All" : PLATFORM[p]}
               <span className="n">{p === "all" ? inTab.length : inTab.filter((r) => r.event.platform === p).length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {catChips.length > 0 && (
+        <div className="filters" aria-label="Filter by category">
+          <button className={`chip sm ${cats.length === 0 ? "on" : ""}`} onClick={() => { setCats([]); setShown(FIRST); }}>
+            Any type
+          </button>
+          {catChips.map((c) => (
+            <button key={c} aria-pressed={cats.includes(c)} className={`chip sm ${cats.includes(c) ? "on" : ""}`} onClick={() => toggleCat(c)}>
+              {CATEGORIES[c]}
+              <span className="n">{catCount(c)}</span>
             </button>
           ))}
         </div>
@@ -142,7 +188,8 @@ export default function Home() {
         </>
       ) : (
         <p className="empty">
-          {tab === "going" ? "Nothing on your calendar yet."
+          {cats.length > 0 && byPlat.length > 0 ? <>Nothing here matches those categories. <button className="link u" onClick={() => setCats([])}>Show all</button></>
+            : searching ? <>No upcoming events match “{search.trim()}”. <button className="link u" onClick={() => onSearch("")}>Clear search</button></>            : tab === "going" ? "Nothing on your calendar yet."
             : tab === "hot" ? "Nothing is selling out right now."
             : state.feed.length === 0 ? <>No events yet. <Link href="/sources" className="u">Add a source</Link></>
             : "You've seen everything. Check back soon."}

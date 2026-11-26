@@ -87,6 +87,18 @@ a { color: inherit; text-decoration: none; }
 .tabs > *:hover { color: var(--ink); }
 .tabs > .on { color: var(--ink); border-bottom-color: var(--ink); font-weight: 500; }
 .tabs .n { font-size: 12px; color: var(--faint); font-weight: 400; }
+/* Home: tabs on the left, title search on the right; the search wraps under the tabs on narrow screens. */
+.tabs-row { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; margin: 32px 0 4px; border-bottom: 1px solid var(--line); }
+.tabs-row > .tabs { margin: 0; border-bottom: 0; }
+.tab-search { position: relative; margin-left: auto; flex: 1 1 180px; max-width: 240px; padding: 6px 0; }
+.tab-search input {
+  width: 100%; font: inherit; font-size: 13px; color: var(--ink); background: var(--hover);
+  border: 1px solid transparent; border-radius: 999px; padding: 6px 32px 6px 12px; outline: none; transition: border-color .2s, background .2s;
+}
+.tab-search input::placeholder { color: var(--muted); }
+.tab-search input:focus { border-color: var(--line); background: var(--bg); }
+.tab-search .x { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; font-size: 16px; }
+.results-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 
 /* ── event rows ──────────────────────── */
 .rows > :last-child { border-bottom: 0; }
@@ -98,6 +110,7 @@ a { color: inherit; text-decoration: none; }
 .row .title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--faint); }
 .meta { font-size: 13px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
 .meta .src { color: var(--faint); }
+.cats { font-size: 12px; color: var(--faint); margin-top: 2px; }
 .why { font-size: 13px; color: var(--muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
 .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--hover); color: var(--muted); }
@@ -202,6 +215,20 @@ input[type="range"] { width: 100%; accent-color: var(--ink); }
 .steps code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink); }
 .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .err { color: var(--accent); font-size: 13px; }
+
+/* ── resume upload (onboarding / preferences) ── */
+.dropzone {
+  width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 28px 16px;
+  border: 1px dashed var(--line); border-radius: 12px; font-size: 14px; color: var(--muted); text-align: center;
+  transition: border-color .15s, background .15s;
+}
+.dropzone strong { color: var(--ink); font-weight: 500; }
+.dropzone:hover:not(:disabled), .dropzone.over, .dropzone:focus-visible { border-color: var(--ink); background: var(--hover); }
+.file-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.file-badge { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 6px 8px; border-radius: 6px; background: var(--hover); color: var(--muted); }
+.file-info { flex: 1; min-width: 0; }
+.file-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-actions { display: flex; gap: 14px; font-size: 13px; flex: none; }
 .fade { animation: fade .4s ease both; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .skeleton { height: 14px; border-radius: 4px; background: var(--hover); margin: 14px 0; }

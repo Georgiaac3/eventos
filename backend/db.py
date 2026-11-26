@@ -9,8 +9,8 @@ from __future__ import annotations
 from functools import lru_cache
 
 from sqlalchemy import (
-    ARRAY, BigInteger, Boolean, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, MetaData,
-    SmallInteger, Table, Text, create_engine, func,
+    ARRAY, BigInteger, Boolean, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary,
+    MetaData, SmallInteger, Table, Text, create_engine, func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.engine import Engine
@@ -164,8 +164,18 @@ calendar_entries = Table(
     Index("ix_calendar_entries_user_starts", "user_id", "starts_at"),
 )
 
+resumes = Table(
+    "resumes", metadata,
+    _user_fk(),                                                           # one per user; uploading again replaces it
+    Column("filename", Text, nullable=False),
+    Column("content_type", Text, nullable=False),
+    Column("size", Integer, nullable=False),
+    Column("data", LargeBinary, nullable=False),                          # the raw PDF / Word file, for the agent to parse
+    _ts("uploaded_at", nullable=False, server_default=func.now()),
+)
+
 USER_TABLES = [profiles, events, event_snapshots, event_scores, signups, dismissals, notifications, digests,
-               agent_runs, agent_notes, calendar_entries]
+               agent_runs, agent_notes, calendar_entries, resumes]
 
 
 def sqlalchemy_url(url: str) -> str:

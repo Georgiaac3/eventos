@@ -25,8 +25,24 @@ export interface EventItem {
   host?: string | null;
   price?: string | null;
   category?: "professional" | "personal";
+  categories?: Category[];
   soldOut?: boolean;
 }
+
+/** Event categories for the feed filter. Keep in sync with CATEGORIES in backend/categorize.py. */
+export const CATEGORIES = {
+  networking: "Networking",
+  food: "Food provided",
+  party: "Party",
+  talk: "Talk / Panel",
+  workshop: "Workshop",
+  career: "Career / Recruiting",
+  tech: "Tech & Startups",
+  arts: "Arts & Music",
+  sports: "Sports & Fitness",
+  free: "Free",
+} as const;
+export type Category = keyof typeof CATEGORIES;
 
 export interface FeedItem {
   event: EventItem;
@@ -61,6 +77,33 @@ export interface Profile {
   timezone: string;
 }
 
+/** The uploaded resume (metadata only; the file stays on the server for the agent). */
+export interface Resume {
+  filename: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export const RESUME_MAX_BYTES = 4 * 1024 * 1024; // keep in sync with backend/app.py
+export const RESUME_EXTENSIONS = [".pdf", ".doc", ".docx"];
+
+/** Uploads a resume as the raw request body; replaces any earlier one. */
+export async function uploadResume(file: File): Promise<Resume> {
+  const token = await accessToken();
+  const res = await fetch("/api/resume", {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+      "X-Filename": encodeURIComponent(file.name),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: file,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail ?? `Upload failed (${res.status})`);
+  return data as Resume;
+}
+
 export interface Connections {
   luma: { enabled: boolean; places: string[]; calendars: string[] };
   eventbrite: { enabled: boolean; places?: string[]; token: string; organizerIds: string[] };
@@ -83,6 +126,7 @@ export interface AgentRun {
 export interface AppState {
   user: { id: string; email: string };
   profile: Profile;
+  resume: Resume | null;
   connections: Connections;
   feed: FeedItem[];
   signups: Record<string, Signup>;

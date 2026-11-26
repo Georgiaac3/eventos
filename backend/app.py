@@ -1,9 +1,12 @@
 """Eventos API (FastAPI). Served at /api/* — by uvicorn locally, by Vercel's Python runtime in production."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, Literal
+from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -59,6 +62,7 @@ def get_state(user: User = Depends(current_user)) -> dict[str, Any]:
     return {
         "user": {"id": user.id, "email": user.email},
         "profile": s["profile"],
+        "resume": store.resume_info(user.id),
         "connections": s["connections"],
         "feed": ranked(s),
         "signups": s["signups"],
@@ -96,6 +100,41 @@ def post_profile(body: ProfileIn, user: User = Depends(current_user)) -> dict[st
         s["profile"].update(body.model_dump(exclude_none=True))
         s["profile"]["digestMax"] = max(1, min(20, int(s["profile"]["digestMax"])))
         return s["profile"]
+
+
+# ── resume ──
+# The browser sends the file as the raw request body (no multipart parser needed) with its name in X-Filename.
+# 4 MB keeps uploads under Vercel's 4.5 MB request limit.
+RESUME_MAX_BYTES = 4 * 1024 * 1024
+RESUME_TYPES = {  # extension → (stored content type, magic bytes the file must start with)
+    ".pdf": ("application/pdf", b"%PDF"),
+    ".docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", b"PK\x03\x04"),
+    ".doc": ("application/msword", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"),
+}
+
+
+@app.post("/api/resume")
+async def post_resume(request: Request, x_filename: str = Header(default="resume"),
+                      user: User = Depends(current_user)) -> dict[str, Any]:
+    filename = unquote(x_filename).replace("/", "_").replace("\\", "_").strip()[:200] or "resume"
+    kind = RESUME_TYPES.get(Path(filename).suffix.lower())
+    if not kind:
+        raise HTTPException(415, "Upload a PDF or Word file (.pdf, .doc or .docx).")
+    if int(request.headers.get("content-length") or 0) > RESUME_MAX_BYTES:
+        raise HTTPException(413, "That file is over 4 MB. Try exporting a smaller PDF.")
+    data = await request.body()
+    if len(data) > RESUME_MAX_BYTES:
+        raise HTTPException(413, "That file is over 4 MB. Try exporting a smaller PDF.")
+    content_type, magic = kind
+    if not data.startswith(magic):
+        raise HTTPException(415, "That file doesn't look like a real PDF or Word document.")
+    return await run_in_threadpool(store.save_resume, user.id, filename, content_type, data)
+
+
+@app.post("/api/resume/delete")
+def delete_resume(user: User = Depends(current_user)) -> dict[str, bool]:
+    store.delete_resume(user.id)
+    return {"ok": True}
 
 
 @app.post("/api/connections")
